@@ -7,7 +7,138 @@
     mc:Ignorable="d"
     Title="StepReplay">
 
-    <Grid Padding="24"
+    <Grid x:Name="RootGrid"
+            Background="Transparent">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Grid x:Name="NavPane"
+                Width="64"
+                Padding="8,14,8,14">
+            <Grid.Resources>
+                <!-- Keep navigation buttons flat: no light hover border in light theme. -->
+                <Thickness x:Key="ButtonBorderThemeThickness">0</Thickness>
+                <SolidColorBrush x:Key="ButtonBackground" Color="Transparent"/>
+                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush"/>
+                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush"/>
+                <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent"/>
+                <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent"/>
+                <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent"/>
+                <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent"/>
+                <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent"/>
+            </Grid.Resources>
+
+            <StackPanel Spacing="12">
+                <Button x:Name="NavToggleButton"
+                        Height="40"
+                        Padding="0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Background="Transparent"
+                        BorderBrush="Transparent"
+                        BorderThickness="0"
+                        Click="NavToggleButton_Click">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="48"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE700;"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="20"/>
+                        <TextBlock x:Name="NavToggleLabel"
+                                Grid.Column="1"
+                                Opacity="0"
+                                VerticalAlignment="Center"
+                                Text="StepReplay"
+                                TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                </Button>
+
+                <Grid x:Name="NavItemsHost">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="48"/>
+                        <RowDefinition Height="48"/>
+                    </Grid.RowDefinitions>
+
+                    <Border x:Name="NavSelectionIndicator"
+                                Width="4"
+                                Height="24"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="0,12,0,0"
+                                CornerRadius="2"
+                                Background="{ThemeResource SystemAccentColor}">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="NavSelectionIndicatorTransform" Y="0"/>
+                        </Border.RenderTransform>
+                    </Border>
+
+                    <Button x:Name="HomeNavButton"
+                            Grid.Row="0"
+                            Height="48"
+                            Padding="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            Click="HomeNavButton_Click"
+                            ToolTipService.ToolTip="主页">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE80F;"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="16"/>
+                        <TextBlock x:Name="HomeNavLabel"
+                                Grid.Column="1"
+                                Opacity="0"
+                                VerticalAlignment="Center"
+                                Text="主页"/>
+                        </Grid>
+                    </Button>
+
+                    <Button x:Name="SettingsNavButton"
+                            Grid.Row="1"
+                            Height="48"
+                            Padding="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            Click="SettingsNavButton_Click"
+                            ToolTipService.ToolTip="设置">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE713;"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="16"/>
+                        <TextBlock x:Name="SettingsNavLabel"
+                                Grid.Column="1"
+                                Opacity="0"
+                                VerticalAlignment="Center"
+                                Text="设置"/>
+                        </Grid>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Grid>
+
+        <Grid
+            Grid.Column="1"
+            Padding="24,12,24,24"
             RowSpacing="14">
         <Grid.Resources>
             <Storyboard x:Name="ShowSettingsStoryboard">
@@ -88,36 +219,24 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="16">
+        <Grid MinHeight="48"
+                ColumnSpacing="16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="138"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Spacing="4">
-                <TextBlock x:Name="TitleText"
-                        Text="StepReplay"
-                        FontSize="28"
-                        FontWeight="SemiBold"/>
-                <TextBlock
-                    x:Name="SubtitleText"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="记录鼠标键盘操作，然后用按钮按原始节奏自动回放。"/>
-            </StackPanel>
+            <Border x:Name="TitleBarDragRegion"
+                    Grid.Column="0"
+                    Background="Transparent"/>
 
-            <Button
-                x:Name="SettingsButton"
-                Grid.Column="1"
-                Width="40"
-                Height="40"
-                Padding="0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Click="SettingsButton_Click"
-                ToolTipService.ToolTip="设置">
-                <FontIcon Glyph="&#xE713;"
-                        FontSize="18"/>
-            </Button>
+            <TextBlock
+                x:Name="SubtitleText"
+                IsHitTestVisible="False"
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="记录鼠标键盘操作，然后用按钮按原始节奏自动回放。"/>
+
         </Grid>
 
         <Grid Grid.Row="1"
@@ -266,6 +385,37 @@
                         </ComboBox>
                     </StackPanel>
 
+                    <StackPanel Spacing="6">
+                        <TextBlock x:Name="ThemeLabelText"
+                                Text="界面主题"/>
+                        <ComboBox x:Name="ThemeComboBox"
+                                SelectionChanged="ThemeComboBox_SelectionChanged">
+                            <ComboBoxItem x:Name="ThemeDefaultItem"
+                                    Tag="Default"
+                                    Content="跟随系统"/>
+                            <ComboBoxItem x:Name="ThemeLightItem"
+                                    Tag="Light"
+                                    Content="浅色"/>
+                            <ComboBoxItem x:Name="ThemeDarkItem"
+                                    Tag="Dark"
+                                    Content="深色"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock x:Name="BackdropLabelText"
+                                Text="窗口背景"/>
+                        <ComboBox x:Name="BackdropComboBox"
+                                SelectionChanged="BackdropComboBox_SelectionChanged">
+                            <ComboBoxItem x:Name="BackdropMicaItem"
+                                    Tag="Mica"
+                                    Content="Mica"/>
+                            <ComboBoxItem x:Name="BackdropMicaAltItem"
+                                    Tag="MicaAlt"
+                                    Content="Mica Alt"/>
+                        </ComboBox>
+                    </StackPanel>
+
                     <NumberBox
                         x:Name="RecordDelayBox"
                         Header="开始录制延迟（秒）"
@@ -297,34 +447,43 @@
                     <TextBox
                         x:Name="StartRecordingHotkeyBox"
                         Header="开始录制"
-                        PlaceholderText="Ctrl+Alt+R"
+                        PlaceholderText="未设置"
+                        IsReadOnly="True"
+                        RenderTransformOrigin="0.5,0.5"
+                        GotFocus="HotkeyBox_GotFocus"
                         LostFocus="HotkeyBox_LostFocus"
                         KeyDown="HotkeyBox_KeyDown"/>
 
                     <TextBox
                         x:Name="StopRecordingHotkeyBox"
                         Header="结束录制"
-                        PlaceholderText="Ctrl+Alt+S"
+                        PlaceholderText="未设置"
+                        IsReadOnly="True"
+                        RenderTransformOrigin="0.5,0.5"
+                        GotFocus="HotkeyBox_GotFocus"
                         LostFocus="HotkeyBox_LostFocus"
                         KeyDown="HotkeyBox_KeyDown"/>
 
                     <TextBox
                         x:Name="StartReplayHotkeyBox"
                         Header="开始回放"
-                        PlaceholderText="Ctrl+Alt+P"
+                        PlaceholderText="未设置"
+                        IsReadOnly="True"
+                        RenderTransformOrigin="0.5,0.5"
+                        GotFocus="HotkeyBox_GotFocus"
                         LostFocus="HotkeyBox_LostFocus"
                         KeyDown="HotkeyBox_KeyDown"/>
 
                     <TextBox
                         x:Name="StopReplayHotkeyBox"
                         Header="停止回放"
-                        PlaceholderText="Ctrl+Alt+X"
+                        PlaceholderText="未设置"
+                        IsReadOnly="True"
+                        RenderTransformOrigin="0.5,0.5"
+                        GotFocus="HotkeyBox_GotFocus"
                         LostFocus="HotkeyBox_LostFocus"
                         KeyDown="HotkeyBox_KeyDown"/>
 
-                    <Button x:Name="BackButton"
-                            Content="返回"
-                            Click="BackButton_Click"/>
                 </StackPanel>
             </ScrollViewer>
         </Grid>
@@ -336,5 +495,6 @@
             Severity="Informational"
             Title="提示"
             Message="开始录制和回放都有 3 秒准备时间；录制期间会忽略本窗口内操作；回放会真实控制桌面。"/>
+        </Grid>
     </Grid>
 </Window>

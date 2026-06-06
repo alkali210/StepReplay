@@ -55,17 +55,29 @@ public static class AppSettingsStore
 
         settings.RecordDelaySeconds = Math.Clamp(settings.RecordDelaySeconds, 0, 60);
         settings.ReplayDelaySeconds = Math.Clamp(settings.ReplayDelaySeconds, 0, 60);
+        settings.ThemeMode = NormalizeChoice(settings.ThemeMode, ["Default", "Light", "Dark"], "Default");
+        settings.BackdropKind = NormalizeChoice(settings.BackdropKind, ["Mica", "MicaAlt"], "Mica");
 
-        settings.StartRecordingHotkey = NormalizeHotkey(settings.StartRecordingHotkey, "Ctrl+Alt+R");
-        settings.StopRecordingHotkey = NormalizeHotkey(settings.StopRecordingHotkey, "Ctrl+Alt+S");
-        settings.StartReplayHotkey = NormalizeHotkey(settings.StartReplayHotkey, "Ctrl+Alt+P");
-        settings.StopReplayHotkey = NormalizeHotkey(settings.StopReplayHotkey, "Ctrl+Alt+X");
+        settings.StartRecordingHotkey = NormalizeHotkey(settings.StartRecordingHotkey);
+        settings.StopRecordingHotkey = NormalizeHotkey(settings.StopRecordingHotkey);
+        settings.StartReplayHotkey = NormalizeHotkey(settings.StartReplayHotkey);
+        settings.StopReplayHotkey = NormalizeHotkey(settings.StopReplayHotkey);
     }
 
-    private static string NormalizeHotkey(string value, string fallback)
+    private static string NormalizeHotkey(string? value)
     {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
         return HotkeyGesture.TryParse(value, out var gesture)
             ? gesture.ToString()
-            : fallback;
+            : string.Empty;
+    }
+
+    private static string NormalizeChoice(string? value, string[] allowed, string fallback)
+    {
+        return allowed.FirstOrDefault(item => string.Equals(item, value, StringComparison.OrdinalIgnoreCase)) ?? fallback;
     }
 }

@@ -20,6 +20,8 @@ public enum HotkeyAction
 
 public sealed record HotkeyGesture(HotkeyModifiers Modifiers, int Key)
 {
+    public static HotkeyGesture Create(HotkeyModifiers modifiers, int key) => new(modifiers, NormalizeKey(key));
+
     public override string ToString()
     {
         var parts = new List<string>();
@@ -123,6 +125,13 @@ public sealed record HotkeyGesture(HotkeyModifiers Modifiers, int Key)
             return true;
         }
 
+        if (part.StartsWith("VK", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(part[2..], System.Globalization.NumberStyles.HexNumber, null, out key)
+            && key is > 0 and <= 0xFF)
+        {
+            return true;
+        }
+
         return false;
     }
 
@@ -145,7 +154,18 @@ public sealed record HotkeyGesture(HotkeyModifiers Modifiers, int Key)
         };
     }
 
-    private static bool IsModifierKey(int key) => key is 0x10 or 0x11 or 0x12 or 0x5B or 0x5C;
+    public static bool IsModifierKey(int key) =>
+        key is 0x10 or 0x11 or 0xA2 or 0xA3 or 0x12 or 0xA4 or 0xA5 or 0x5B or 0x5C;
+
+    private static int NormalizeKey(int key)
+    {
+        // WinUI may report numpad keys separately. Keep saved hotkeys in common VK form where practical.
+        return key switch
+        {
+            >= 0x60 and <= 0x69 => key - 0x60 + '0',
+            _ => key
+        };
+    }
 
     private static readonly Dictionary<string, int> NamedKeys = new()
     {
@@ -167,6 +187,11 @@ public sealed record HotkeyGesture(HotkeyModifiers Modifiers, int Key)
         ["LEFT"] = 0x25,
         ["RIGHT"] = 0x27,
         ["PLUS"] = 0xBB,
-        ["MINUS"] = 0xBD
+        ["MINUS"] = 0xBD,
+        ["NUMPLUS"] = 0x6B,
+        ["NUMMINUS"] = 0x6D,
+        ["NUMMULTIPLY"] = 0x6A,
+        ["NUMDIVIDE"] = 0x6F,
+        ["NUMDECIMAL"] = 0x6E
     };
 }

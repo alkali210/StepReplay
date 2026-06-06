@@ -2,15 +2,19 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using StepReplay.Models;
+using StepReplay.Native;
 using StepReplay.Services;
 using System.Collections.ObjectModel;
+using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Provider;
+using Windows.System;
 using WinRT.Interop;
 
 namespace StepReplay;
@@ -33,6 +37,8 @@ public sealed partial class MainWindow : Window
     private readonly Localizer _localizer;
     private CancellationTokenSource? _recordCts;
     private CancellationTokenSource? _replayCts;
+    private TextBox? _capturingHotkeyBox;
+    private bool _isNavPaneExpanded;
     private bool _isUpdatingSettingsUi;
     private bool _isTransitioningPage;
 
@@ -44,11 +50,18 @@ public sealed partial class MainWindow : Window
         _localizer = new Localizer(_settings);
 
         InitializeComponent();
+        InitializeCustomTitleBar();
+        InitializeHotkeyBoxAnimations();
         _recorder.EventRecorded += OnEventRecorded;
         _hotkeyService.HotkeyPressed += OnHotkeyPressed;
+        _hotkeyService.HotkeyCaptured += OnHotkeyCaptured;
+        _hotkeyService.HotkeyCaptureCanceled += OnHotkeyCaptureCanceled;
+        _hotkeyService.HotkeyCaptureCleared += OnHotkeyCaptureCleared;
+        _hotkeyService.HotkeyCaptureNeedsModifier += OnHotkeyCaptureNeedsModifier;
         Closed += MainWindow_Closed;
 
         ApplySettingsToControls();
+        ApplyAppearance();
         ApplyLocalization();
         RebuildVisibleEvents();
         StatusText.Text = _localizer.T("Status.Ready");
@@ -93,7 +106,7 @@ public sealed partial class MainWindow : Window
         ClearButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         LoadButton.IsEnabled = false;
-        SettingsButton.IsEnabled = false;
+        SetNavigationEnabled(false);
         BusyRing.IsActive = true;
 
         var cts = new CancellationTokenSource();
@@ -182,7 +195,7 @@ public sealed partial class MainWindow : Window
         ClearButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         LoadButton.IsEnabled = false;
-        SettingsButton.IsEnabled = false;
+        SetNavigationEnabled(false);
         ReplayButton.Content = _localizer.T("Button.CancelReplay");
         BusyRing.IsActive = true;
 
@@ -208,7 +221,7 @@ public sealed partial class MainWindow : Window
             ReplayButton.IsEnabled = _events.Count > 0;
             SaveButton.IsEnabled = _events.Count > 0;
             LoadButton.IsEnabled = true;
-            SettingsButton.IsEnabled = true;
+            SetNavigationEnabled(true);
             ReplayButton.Content = _localizer.T("Button.Replay");
             BusyRing.IsActive = false;
         }
@@ -304,15 +317,36 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void SettingsButton_Click(object sender, RoutedEventArgs e)
+    private async void HomeNavButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isTransitioningPage || SettingsPage.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        await ShowMainPageAsync();
+    }
+
+    private async void SettingsNavButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isTransitioningPage || SettingsPage.Visibility == Visibility.Visible)
         {
             return;
         }
 
+        await ShowSettingsPageAsync();
+    }
+
+    private void NavToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isNavPaneExpanded = !_isNavPaneExpanded;
+        AnimateNavigationPane(_isNavPaneExpanded);
+    }
+
+    private async Task ShowSettingsPageAsync()
+    {
         _isTransitioningPage = true;
-        SettingsButton.IsEnabled = false;
+        SetNavigationEnabled(false);
         MainPage.Visibility = Visibility.Visible;
         SettingsPage.Visibility = Visibility.Visible;
 
@@ -324,18 +358,15 @@ public sealed partial class MainWindow : Window
         await BeginStoryboardAsync(ShowSettingsStoryboard);
 
         MainPage.Visibility = Visibility.Collapsed;
+        SetNavigationEnabled(true);
+        UpdateNavigationSelection(isSettingsPageVisible: true);
         _isTransitioningPage = false;
     }
 
-    private async void BackButton_Click(object sender, RoutedEventArgs e)
+    private async Task ShowMainPageAsync()
     {
-        if (_isTransitioningPage || SettingsPage.Visibility != Visibility.Visible)
-        {
-            return;
-        }
-
         _isTransitioningPage = true;
-        SettingsButton.IsEnabled = false;
+        SetNavigationEnabled(false);
         MainPage.Visibility = Visibility.Visible;
         SettingsPage.Visibility = Visibility.Visible;
 
@@ -347,7 +378,8 @@ public sealed partial class MainWindow : Window
         await BeginStoryboardAsync(ShowMainStoryboard);
 
         SettingsPage.Visibility = Visibility.Collapsed;
-        SettingsButton.IsEnabled = true;
+        SetNavigationEnabled(true);
+        UpdateNavigationSelection(isSettingsPageVisible: false);
         _isTransitioningPage = false;
     }
 
@@ -359,6 +391,28 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.Language = language;
+        SaveSettingsAndRefresh();
+    }
+
+    private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingSettingsUi || ThemeComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string themeMode)
+        {
+            return;
+        }
+
+        _settings.ThemeMode = themeMode;
+        SaveSettingsAndRefresh();
+    }
+
+    private void BackdropComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingSettingsUi || BackdropComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string backdropKind)
+        {
+            return;
+        }
+
+        _settings.BackdropKind = backdropKind;
         SaveSettingsAndRefresh();
     }
 
@@ -397,10 +451,28 @@ public sealed partial class MainWindow : Window
 
     private void HotkeyBox_LostFocus(object sender, RoutedEventArgs e)
     {
+        if (ReferenceEquals(_capturingHotkeyBox, sender))
+        {
+            _capturingHotkeyBox = null;
+        }
+
+        _hotkeyService.EndCapture();
         if (sender is TextBox textBox)
         {
             ApplyHotkeyTextBox(textBox);
         }
+    }
+
+    private void HotkeyBox_GotFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            _capturingHotkeyBox = textBox;
+            _hotkeyService.BeginCapture();
+            textBox.SelectAll();
+        }
+
+        StatusText.Text = _localizer.T("Settings.HotkeyPressPrompt");
     }
 
     private void HotkeyBox_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -410,19 +482,46 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        e.Handled = true;
+
+        if (e.Key == VirtualKey.Escape)
         {
-            ApplyHotkeyTextBox(textBox);
-            textBox.IsEnabled = false;
-            textBox.IsEnabled = true;
-            e.Handled = true;
+            ApplySettingsToControls();
+            StatusText.Text = _localizer.T("Settings.HotkeyCaptureCanceled");
+            return;
         }
+
+        var key = (int)e.Key;
+        if (HotkeyGesture.IsModifierKey(key))
+        {
+            StatusText.Text = _localizer.T("Settings.HotkeyPressPrompt");
+            return;
+        }
+
+        var modifiers = GetCurrentHotkeyModifiers();
+        if (modifiers == HotkeyModifiers.None)
+        {
+            StatusText.Text = _localizer.T("Settings.HotkeyNeedModifier");
+            return;
+        }
+
+        var gesture = HotkeyGesture.Create(modifiers, key);
+        textBox.Text = gesture.ToString();
+        ApplyHotkeyTextBox(textBox);
+        _hotkeyService.EndCapture();
     }
 
     private void ApplyHotkeyTextBox(TextBox textBox)
     {
         if (_isUpdatingSettingsUi)
         {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(textBox.Text))
+        {
+            SetHotkeyValue(textBox, string.Empty);
+            SaveSettingsAndRefresh(updateControls: true);
             return;
         }
 
@@ -434,6 +533,19 @@ public sealed partial class MainWindow : Window
         }
 
         var value = gesture.ToString();
+        if (TryGetHotkeyConflict(textBox, value, out var conflictName))
+        {
+            ApplySettingsToControls();
+            StatusText.Text = string.Format(_localizer.T("Settings.HotkeyConflict"), conflictName);
+            return;
+        }
+
+        SetHotkeyValue(textBox, value);
+        SaveSettingsAndRefresh(updateControls: true);
+    }
+
+    private void SetHotkeyValue(TextBox textBox, string value)
+    {
         if (textBox == StartRecordingHotkeyBox)
         {
             _settings.StartRecordingHotkey = value;
@@ -450,8 +562,39 @@ public sealed partial class MainWindow : Window
         {
             _settings.StopReplayHotkey = value;
         }
+    }
 
-        SaveSettingsAndRefresh(updateControls: true);
+    private bool TryGetHotkeyConflict(TextBox sourceTextBox, string value, out string conflictName)
+    {
+        conflictName = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var hotkeys = new (TextBox TextBox, string Value, string LabelKey)[]
+        {
+            (StartRecordingHotkeyBox, _settings.StartRecordingHotkey, "Settings.Hotkey.StartRecording"),
+            (StopRecordingHotkeyBox, _settings.StopRecordingHotkey, "Settings.Hotkey.StopRecording"),
+            (StartReplayHotkeyBox, _settings.StartReplayHotkey, "Settings.Hotkey.StartReplay"),
+            (StopReplayHotkeyBox, _settings.StopReplayHotkey, "Settings.Hotkey.StopReplay")
+        };
+
+        foreach (var hotkey in hotkeys)
+        {
+            if (ReferenceEquals(hotkey.TextBox, sourceTextBox))
+            {
+                continue;
+            }
+
+            if (string.Equals(hotkey.Value, value, StringComparison.OrdinalIgnoreCase))
+            {
+                conflictName = _localizer.T(hotkey.LabelKey);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void SaveSettingsAndRefresh(bool updateControls = false)
@@ -463,9 +606,89 @@ public sealed partial class MainWindow : Window
             ApplySettingsToControls();
         }
 
+        ApplyAppearance();
         ApplyLocalization();
         RebuildVisibleEvents();
         StatusText.Text = _localizer.T("Settings.Saved");
+    }
+
+    private void InitializeCustomTitleBar()
+    {
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(TitleBarDragRegion);
+    }
+
+    private void ApplyAppearance()
+    {
+        RootGrid.RequestedTheme = _settings.ThemeMode switch
+        {
+            "Light" => ElementTheme.Light,
+            "Dark" => ElementTheme.Dark,
+            _ => ElementTheme.Default
+        };
+
+        SystemBackdrop = new MicaBackdrop
+        {
+            Kind = _settings.BackdropKind == "MicaAlt"
+                ? Microsoft.UI.Composition.SystemBackdrops.MicaKind.BaseAlt
+                : Microsoft.UI.Composition.SystemBackdrops.MicaKind.Base
+        };
+    }
+
+    private void InitializeHotkeyBoxAnimations()
+    {
+        foreach (var textBox in new[] { StartRecordingHotkeyBox, StopRecordingHotkeyBox, StartReplayHotkeyBox, StopReplayHotkeyBox })
+        {
+            textBox.RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
+            textBox.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(HotkeyBox_PointerPressed), true);
+            textBox.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(HotkeyBox_PointerReleased), true);
+            textBox.AddHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(HotkeyBox_PointerReleased), true);
+            textBox.AddHandler(UIElement.PointerExitedEvent, new PointerEventHandler(HotkeyBox_PointerReleased), true);
+        }
+    }
+
+    private void HotkeyBox_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            AnimateScale(textBox, 0.985, TimeSpan.FromMilliseconds(83));
+        }
+    }
+
+    private void HotkeyBox_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            AnimateScale(textBox, 1, TimeSpan.FromMilliseconds(167));
+        }
+    }
+
+    private static void AnimateScale(TextBox textBox, double scale, TimeSpan duration)
+    {
+        if (textBox.RenderTransform is not ScaleTransform)
+        {
+            textBox.RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
+        }
+
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(CreateScaleAnimation(textBox, "ScaleX", scale, duration));
+        storyboard.Children.Add(CreateScaleAnimation(textBox, "ScaleY", scale, duration));
+        storyboard.Begin();
+    }
+
+    private static DoubleAnimation CreateScaleAnimation(TextBox textBox, string property, double to, TimeSpan duration)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = to,
+            Duration = duration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true
+        };
+
+        Storyboard.SetTarget(animation, textBox);
+        Storyboard.SetTargetProperty(animation, $"(UIElement.RenderTransform).(ScaleTransform.{property})");
+        return animation;
     }
 
     private void ApplySettingsToControls()
@@ -476,6 +699,15 @@ public sealed partial class MainWindow : Window
             LanguageComboBox.SelectedItem = _settings.Language == "en-US"
                 ? LanguageEnglishItem
                 : LanguageChineseItem;
+            ThemeComboBox.SelectedItem = _settings.ThemeMode switch
+            {
+                "Light" => ThemeLightItem,
+                "Dark" => ThemeDarkItem,
+                _ => ThemeDefaultItem
+            };
+            BackdropComboBox.SelectedItem = _settings.BackdropKind == "MicaAlt"
+                ? BackdropMicaAltItem
+                : BackdropMicaItem;
             RecordDelayBox.Value = _settings.RecordDelaySeconds;
             ReplayDelayBox.Value = _settings.ReplayDelaySeconds;
             ShowMouseMovesSwitch.IsOn = _settings.ShowMouseMovesInList;
@@ -499,9 +731,10 @@ public sealed partial class MainWindow : Window
         ClearButton.Content = _localizer.T("Button.Clear");
         SaveButton.Content = _localizer.T("Button.Save");
         LoadButton.Content = _localizer.T("Button.Load");
-        AutomationProperties.SetName(SettingsButton, _localizer.T("Button.Settings"));
-        ToolTipService.SetToolTip(SettingsButton, _localizer.T("Button.Settings"));
-        BackButton.Content = _localizer.T("Button.Back");
+        HomeNavLabel.Text = _localizer.T("Nav.Home");
+        SettingsNavLabel.Text = _localizer.T("Nav.Settings");
+        NavToggleLabel.Text = "StepReplay";
+        UpdateNavigationSelection(SettingsPage.Visibility == Visibility.Visible);
 
         TimeHeaderText.Text = _localizer.T("Column.Time");
         TypeHeaderText.Text = _localizer.T("Column.Type");
@@ -514,6 +747,13 @@ public sealed partial class MainWindow : Window
         LanguageLabelText.Text = _localizer.T("Settings.Language");
         LanguageChineseItem.Content = _localizer.T("Settings.Language.zh-CN");
         LanguageEnglishItem.Content = _localizer.T("Settings.Language.en-US");
+        ThemeLabelText.Text = _localizer.T("Settings.Theme");
+        ThemeDefaultItem.Content = _localizer.T("Settings.Theme.Default");
+        ThemeLightItem.Content = _localizer.T("Settings.Theme.Light");
+        ThemeDarkItem.Content = _localizer.T("Settings.Theme.Dark");
+        BackdropLabelText.Text = _localizer.T("Settings.Backdrop");
+        BackdropMicaItem.Content = _localizer.T("Settings.Backdrop.Mica");
+        BackdropMicaAltItem.Content = _localizer.T("Settings.Backdrop.MicaAlt");
         RecordDelayBox.Header = _localizer.T("Settings.RecordDelay");
         ReplayDelayBox.Header = _localizer.T("Settings.ReplayDelay");
         ShowMouseMovesSwitch.Header = _localizer.T("Settings.ShowMouseMoves");
@@ -522,6 +762,10 @@ public sealed partial class MainWindow : Window
         StopRecordingHotkeyBox.Header = _localizer.T("Settings.Hotkey.StopRecording");
         StartReplayHotkeyBox.Header = _localizer.T("Settings.Hotkey.StartReplay");
         StopReplayHotkeyBox.Header = _localizer.T("Settings.Hotkey.StopReplay");
+        StartRecordingHotkeyBox.PlaceholderText = _localizer.T("Settings.Hotkey.Unset");
+        StopRecordingHotkeyBox.PlaceholderText = _localizer.T("Settings.Hotkey.Unset");
+        StartReplayHotkeyBox.PlaceholderText = _localizer.T("Settings.Hotkey.Unset");
+        StopReplayHotkeyBox.PlaceholderText = _localizer.T("Settings.Hotkey.Unset");
 
         UpdateEventsSummary();
     }
@@ -550,6 +794,139 @@ public sealed partial class MainWindow : Window
         return tcs.Task;
     }
 
+    private void UpdateNavigationSelection(bool isSettingsPageVisible)
+    {
+        HomeNavButton.IsEnabled = true;
+        SettingsNavButton.IsEnabled = true;
+        HomeNavButton.Opacity = isSettingsPageVisible ? 0.82 : 1;
+        SettingsNavButton.Opacity = isSettingsPageVisible ? 1 : 0.82;
+        ApplyNavigationButtonVisual(HomeNavButton, !isSettingsPageVisible);
+        ApplyNavigationButtonVisual(SettingsNavButton, isSettingsPageVisible);
+        AnimateNavSelectionIndicator(isSettingsPageVisible ? 48 : 0);
+        AutomationProperties.SetName(HomeNavButton, _localizer.T("Nav.Home"));
+        AutomationProperties.SetName(SettingsNavButton, _localizer.T("Nav.Settings"));
+        ToolTipService.SetToolTip(HomeNavButton, _localizer.T("Nav.Home"));
+        ToolTipService.SetToolTip(SettingsNavButton, _localizer.T("Nav.Settings"));
+        ToolTipService.SetToolTip(NavToggleButton, "StepReplay");
+    }
+
+    private void SetNavigationEnabled(bool enabled)
+    {
+        if (!enabled)
+        {
+            HomeNavButton.IsEnabled = false;
+            SettingsNavButton.IsEnabled = false;
+            NavToggleButton.IsEnabled = false;
+            HomeNavButton.Opacity = 0.6;
+            SettingsNavButton.Opacity = 0.6;
+            return;
+        }
+
+        NavToggleButton.IsEnabled = true;
+        UpdateNavigationSelection(SettingsPage.Visibility == Visibility.Visible);
+    }
+
+    private static void ApplyNavigationButtonVisual(Button button, bool isSelected)
+    {
+        button.BorderThickness = new Thickness(0);
+        button.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        button.Background = isSelected
+            ? (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"]
+            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        button.Shadow = null;
+        button.Translation = Vector3.Zero;
+    }
+
+    private void AnimateNavSelectionIndicator(double targetY)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = targetY,
+            Duration = TimeSpan.FromMilliseconds(220),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true
+        };
+
+        Storyboard.SetTarget(animation, NavSelectionIndicatorTransform);
+        Storyboard.SetTargetProperty(animation, "Y");
+
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(animation);
+        storyboard.Begin();
+    }
+
+    private void AnimateNavigationPane(bool expand)
+    {
+        var targetWidth = expand ? 176 : 64;
+        var targetOpacity = expand ? 1 : 0;
+        var duration = TimeSpan.FromMilliseconds(240);
+
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(CreateWidthAnimation(NavPane, targetWidth, duration));
+        storyboard.Children.Add(CreateOpacityAnimation(HomeNavLabel, targetOpacity, duration));
+        storyboard.Children.Add(CreateOpacityAnimation(SettingsNavLabel, targetOpacity, duration));
+        storyboard.Children.Add(CreateOpacityAnimation(NavToggleLabel, targetOpacity, duration));
+        storyboard.Begin();
+    }
+
+    private static DoubleAnimation CreateWidthAnimation(FrameworkElement target, double width, TimeSpan duration)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = width,
+            Duration = duration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true
+        };
+
+        Storyboard.SetTarget(animation, target);
+        Storyboard.SetTargetProperty(animation, "Width");
+        return animation;
+    }
+
+    private static DoubleAnimation CreateOpacityAnimation(UIElement target, double opacity, TimeSpan duration)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = opacity,
+            Duration = duration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        Storyboard.SetTarget(animation, target);
+        Storyboard.SetTargetProperty(animation, "Opacity");
+        return animation;
+    }
+
+    private static HotkeyModifiers GetCurrentHotkeyModifiers()
+    {
+        var modifiers = HotkeyModifiers.None;
+        if (IsKeyDown(0x11) || IsKeyDown(0xA2) || IsKeyDown(0xA3))
+        {
+            modifiers |= HotkeyModifiers.Ctrl;
+        }
+
+        if (IsKeyDown(0x12) || IsKeyDown(0xA4) || IsKeyDown(0xA5))
+        {
+            modifiers |= HotkeyModifiers.Alt;
+        }
+
+        if (IsKeyDown(0x10) || IsKeyDown(0xA0) || IsKeyDown(0xA1))
+        {
+            modifiers |= HotkeyModifiers.Shift;
+        }
+
+        if (IsKeyDown(0x5B) || IsKeyDown(0x5C))
+        {
+            modifiers |= HotkeyModifiers.Win;
+        }
+
+        return modifiers;
+    }
+
+    private static bool IsKeyDown(int virtualKey) =>
+        (Win32.GetAsyncKeyState(virtualKey) & unchecked((short)0x8000)) != 0;
+
     private void OnHotkeyPressed(object? sender, HotkeyAction action)
     {
         DispatcherQueue.TryEnqueue(async () =>
@@ -572,6 +949,55 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    private void OnHotkeyCaptured(object? sender, HotkeyGesture gesture)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_capturingHotkeyBox is null)
+            {
+                return;
+            }
+
+            _capturingHotkeyBox.Text = gesture.ToString();
+            ApplyHotkeyTextBox(_capturingHotkeyBox);
+            _capturingHotkeyBox = null;
+        });
+    }
+
+    private void OnHotkeyCaptureCanceled(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            ApplySettingsToControls();
+            _capturingHotkeyBox = null;
+            StatusText.Text = _localizer.T("Settings.HotkeyCaptureCanceled");
+        });
+    }
+
+    private void OnHotkeyCaptureCleared(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_capturingHotkeyBox is null)
+            {
+                return;
+            }
+
+            _capturingHotkeyBox.Text = string.Empty;
+            ApplyHotkeyTextBox(_capturingHotkeyBox);
+            _capturingHotkeyBox = null;
+            StatusText.Text = _localizer.T("Settings.HotkeyCleared");
+        });
+    }
+
+    private void OnHotkeyCaptureNeedsModifier(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            StatusText.Text = _localizer.T("Settings.HotkeyNeedModifier");
+        });
+    }
+
     private void RestoreIdleControls()
     {
         StartButton.IsEnabled = true;
@@ -580,7 +1006,7 @@ public sealed partial class MainWindow : Window
         ClearButton.IsEnabled = _events.Count > 0;
         SaveButton.IsEnabled = _events.Count > 0;
         LoadButton.IsEnabled = true;
-        SettingsButton.IsEnabled = SettingsPage.Visibility != Visibility.Visible;
+        SetNavigationEnabled(true);
         BusyRing.IsActive = false;
     }
 
