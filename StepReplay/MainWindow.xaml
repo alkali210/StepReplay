@@ -7,74 +7,102 @@
     mc:Ignorable="d"
     Title="StepReplay">
 
-    <Grid Padding="24" RowSpacing="14">
+    <Grid Padding="24"
+            RowSpacing="14">
         <Grid.Resources>
             <Storyboard x:Name="ShowSettingsStoryboard">
-                <DoubleAnimation Storyboard.TargetName="MainPage" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16">
+                <DoubleAnimation Storyboard.TargetName="MainPage"
+                        Storyboard.TargetProperty="Opacity"
+                        To="0"
+                        Duration="0:0:0.16">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
-                <DoubleAnimation Storyboard.TargetName="MainPageTransform" Storyboard.TargetProperty="X" To="-24" Duration="0:0:0.16">
+                <DoubleAnimation Storyboard.TargetName="MainPageTransform"
+                        Storyboard.TargetProperty="X"
+                        To="-24"
+                        Duration="0:0:0.16">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
-                <DoubleAnimation Storyboard.TargetName="SettingsPage" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.22">
+                <DoubleAnimation Storyboard.TargetName="SettingsPage"
+                        Storyboard.TargetProperty="Opacity"
+                        To="1"
+                        Duration="0:0:0.22">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
-                <DoubleAnimation Storyboard.TargetName="SettingsPageTransform" Storyboard.TargetProperty="X" To="0" Duration="0:0:0.22">
+                <DoubleAnimation Storyboard.TargetName="SettingsPageTransform"
+                        Storyboard.TargetProperty="X"
+                        To="0"
+                        Duration="0:0:0.22">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
             </Storyboard>
 
             <Storyboard x:Name="ShowMainStoryboard">
-                <DoubleAnimation Storyboard.TargetName="SettingsPage" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16">
+                <DoubleAnimation Storyboard.TargetName="SettingsPage"
+                        Storyboard.TargetProperty="Opacity"
+                        To="0"
+                        Duration="0:0:0.16">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
-                <DoubleAnimation Storyboard.TargetName="SettingsPageTransform" Storyboard.TargetProperty="X" To="24" Duration="0:0:0.16">
+                <DoubleAnimation Storyboard.TargetName="SettingsPageTransform"
+                        Storyboard.TargetProperty="X"
+                        To="24"
+                        Duration="0:0:0.16">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
-                <DoubleAnimation Storyboard.TargetName="MainPage" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.22">
+                <DoubleAnimation Storyboard.TargetName="MainPage"
+                        Storyboard.TargetProperty="Opacity"
+                        To="1"
+                        Duration="0:0:0.22">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
-                <DoubleAnimation Storyboard.TargetName="MainPageTransform" Storyboard.TargetProperty="X" To="0" Duration="0:0:0.22">
+                <DoubleAnimation Storyboard.TargetName="MainPageTransform"
+                        Storyboard.TargetProperty="X"
+                        To="0"
+                        Duration="0:0:0.22">
                     <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
+                        <CubicEase EasingMode="EaseOut"/>
                     </DoubleAnimation.EasingFunction>
                 </DoubleAnimation>
             </Storyboard>
         </Grid.Resources>
 
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid ColumnSpacing="16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <StackPanel Spacing="4">
-                <TextBlock x:Name="TitleText" Text="StepReplay" FontSize="28" FontWeight="SemiBold" />
+                <TextBlock x:Name="TitleText"
+                        Text="StepReplay"
+                        FontSize="28"
+                        FontWeight="SemiBold"/>
                 <TextBlock
                     x:Name="SubtitleText"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="记录鼠标键盘操作，然后用按钮按原始节奏自动回放。" />
+                    Text="记录鼠标键盘操作，然后用按钮按原始节奏自动回放。"/>
             </StackPanel>
 
             <Button
@@ -87,64 +115,112 @@
                 VerticalAlignment="Top"
                 Click="SettingsButton_Click"
                 ToolTipService.ToolTip="设置">
-                <FontIcon Glyph="&#xE713;" FontSize="18" />
+                <FontIcon Glyph="&#xE713;"
+                        FontSize="18"/>
             </Button>
         </Grid>
 
-        <Grid Grid.Row="1" ColumnSpacing="10">
+        <Grid Grid.Row="1"
+                ColumnSpacing="10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Button x:Name="StartButton" Content="开始录制" Click="StartButton_Click" />
-            <Button x:Name="StopButton" Grid.Column="1" Content="停止录制" Click="StopButton_Click" IsEnabled="False" />
-            <Button x:Name="ReplayButton" Grid.Column="2" Content="回放" Click="ReplayButton_Click" IsEnabled="False" />
-            <Button x:Name="ClearButton" Grid.Column="3" Content="清空" Click="ClearButton_Click" IsEnabled="False" />
-            <Button x:Name="SaveButton" Grid.Column="4" Content="保存 JSON" Click="SaveButton_Click" IsEnabled="False" />
-            <Button x:Name="LoadButton" Grid.Column="5" Content="载入 JSON" Click="LoadButton_Click" />
+            <Button x:Name="StartButton"
+                    Content="开始录制"
+                    Click="StartButton_Click"/>
+            <Button x:Name="StopButton"
+                    Grid.Column="1"
+                    Content="停止录制"
+                    Click="StopButton_Click"
+                    IsEnabled="False"/>
+            <Button x:Name="ReplayButton"
+                    Grid.Column="2"
+                    Content="回放"
+                    Click="ReplayButton_Click"
+                    IsEnabled="False"/>
+            <Button x:Name="ClearButton"
+                    Grid.Column="3"
+                    Content="清空"
+                    Click="ClearButton_Click"
+                    IsEnabled="False"/>
+            <Button x:Name="SaveButton"
+                    Grid.Column="4"
+                    Content="保存 JSON"
+                    Click="SaveButton_Click"
+                    IsEnabled="False"/>
+            <Button x:Name="LoadButton"
+                    Grid.Column="5"
+                    Content="载入 JSON"
+                    Click="LoadButton_Click"/>
 
-            <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <ProgressRing x:Name="BusyRing" Width="20" Height="20" IsActive="False" />
-                <TextBlock x:Name="StatusText" Text="就绪" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="6"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center">
+                <ProgressRing x:Name="BusyRing"
+                        Width="20"
+                        Height="20"
+                        IsActive="False"/>
+                <TextBlock x:Name="StatusText"
+                        Text="就绪"
+                        VerticalAlignment="Center"/>
             </StackPanel>
         </Grid>
 
         <Grid Grid.Row="2">
-            <Grid x:Name="MainPage" Opacity="1">
+            <Grid x:Name="MainPage"
+                    Opacity="1">
                 <Grid.RenderTransform>
-                    <TranslateTransform x:Name="MainPageTransform" X="0" />
+                    <TranslateTransform x:Name="MainPageTransform"
+                            X="0"/>
                 </Grid.RenderTransform>
 
-                <ListView x:Name="EventsList" ItemsSource="{x:Bind VisibleEvents, Mode=OneWay}">
+                <ListView x:Name="EventsList"
+                        ItemsSource="{x:Bind VisibleEvents, Mode=OneWay}">
                     <ListView.Header>
-                        <Grid Padding="8" ColumnSpacing="12">
+                        <Grid Padding="8"
+                                ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="90" />
-                                <ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="TimeHeaderText" Text="时间" FontWeight="SemiBold" />
-                            <TextBlock x:Name="TypeHeaderText" Grid.Column="1" Text="类型" FontWeight="SemiBold" />
-                            <TextBlock x:Name="DetailHeaderText" Grid.Column="2" Text="详情" FontWeight="SemiBold" />
+                            <TextBlock x:Name="TimeHeaderText"
+                                    Text="时间"
+                                    FontWeight="SemiBold"/>
+                            <TextBlock x:Name="TypeHeaderText"
+                                    Grid.Column="1"
+                                    Text="类型"
+                                    FontWeight="SemiBold"/>
+                            <TextBlock x:Name="DetailHeaderText"
+                                    Grid.Column="2"
+                                    Text="详情"
+                                    FontWeight="SemiBold"/>
                         </Grid>
                     </ListView.Header>
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Grid Padding="8,4" ColumnSpacing="12">
+                            <Grid Padding="8,4"
+                                    ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="90" />
-                                    <ColumnDefinition Width="100" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding OffsetText}" />
-                                <TextBlock Grid.Column="1" Text="{Binding KindText}" />
-                                <TextBlock Grid.Column="2" Text="{Binding DetailText}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding OffsetText}"/>
+                                <TextBlock Grid.Column="1"
+                                        Text="{Binding KindText}"/>
+                                <TextBlock Grid.Column="2"
+                                        Text="{Binding DetailText}"
+                                        TextTrimming="CharacterEllipsis"/>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -153,31 +229,40 @@
                             x:Name="EventsSummaryText"
                             Padding="8"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="列表不单独显示鼠标移动事件；回放和 JSON 会保留完整移动轨迹。" />
+                            Text="列表不单独显示鼠标移动事件；回放和 JSON 会保留完整移动轨迹。"/>
                     </ListView.Footer>
                 </ListView>
             </Grid>
 
-            <ScrollViewer x:Name="SettingsPage" Opacity="0" Visibility="Collapsed">
+            <ScrollViewer x:Name="SettingsPage"
+                    Opacity="0"
+                    Visibility="Collapsed">
                 <ScrollViewer.RenderTransform>
-                    <TranslateTransform x:Name="SettingsPageTransform" X="24" />
+                    <TranslateTransform x:Name="SettingsPageTransform"
+                            X="24"/>
                 </ScrollViewer.RenderTransform>
 
-                <StackPanel MaxWidth="560" Spacing="18" HorizontalAlignment="Left">
+                <StackPanel MaxWidth="560"
+                        Spacing="18"
+                        HorizontalAlignment="Left">
                     <StackPanel Spacing="4">
-                        <TextBlock x:Name="SettingsTitleText" Text="设置" FontSize="24" FontWeight="SemiBold" />
-                        <TextBlock
-                            x:Name="SettingsDescriptionText"
-                            TextWrapping="Wrap"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="更改界面语言、开始录制/回放前的准备时间，以及列表是否显示鼠标轨迹。" />
+                        <TextBlock x:Name="SettingsTitleText"
+                                Text="设置"
+                                FontSize="24"
+                                FontWeight="SemiBold"/>
                     </StackPanel>
 
                     <StackPanel Spacing="6">
-                        <TextBlock x:Name="LanguageLabelText" Text="显示语言" />
-                        <ComboBox x:Name="LanguageComboBox" SelectionChanged="LanguageComboBox_SelectionChanged">
-                            <ComboBoxItem x:Name="LanguageChineseItem" Tag="zh-CN" Content="简体中文" />
-                            <ComboBoxItem x:Name="LanguageEnglishItem" Tag="en-US" Content="English" />
+                        <TextBlock x:Name="LanguageLabelText"
+                                Text="显示语言"/>
+                        <ComboBox x:Name="LanguageComboBox"
+                                SelectionChanged="LanguageComboBox_SelectionChanged">
+                            <ComboBoxItem x:Name="LanguageChineseItem"
+                                    Tag="zh-CN"
+                                    Content="简体中文"/>
+                            <ComboBoxItem x:Name="LanguageEnglishItem"
+                                    Tag="en-US"
+                                    Content="English"/>
                         </ComboBox>
                     </StackPanel>
 
@@ -188,7 +273,7 @@
                         Maximum="60"
                         SmallChange="1"
                         SpinButtonPlacementMode="Inline"
-                        ValueChanged="RecordDelayBox_ValueChanged" />
+                        ValueChanged="RecordDelayBox_ValueChanged"/>
 
                     <NumberBox
                         x:Name="ReplayDelayBox"
@@ -197,14 +282,49 @@
                         Maximum="60"
                         SmallChange="1"
                         SpinButtonPlacementMode="Inline"
-                        ValueChanged="ReplayDelayBox_ValueChanged" />
+                        ValueChanged="ReplayDelayBox_ValueChanged"/>
 
                     <ToggleSwitch
                         x:Name="ShowMouseMovesSwitch"
                         Header="在列表中显示鼠标轨迹记录"
-                        Toggled="ShowMouseMovesSwitch_Toggled" />
+                        Toggled="ShowMouseMovesSwitch_Toggled"/>
 
-                    <Button x:Name="BackButton" Content="返回" Click="BackButton_Click" />
+                    <TextBlock x:Name="HotkeysTitleText"
+                            Text="快捷键"
+                            FontSize="18"
+                            FontWeight="SemiBold"/>
+
+                    <TextBox
+                        x:Name="StartRecordingHotkeyBox"
+                        Header="开始录制"
+                        PlaceholderText="Ctrl+Alt+R"
+                        LostFocus="HotkeyBox_LostFocus"
+                        KeyDown="HotkeyBox_KeyDown"/>
+
+                    <TextBox
+                        x:Name="StopRecordingHotkeyBox"
+                        Header="结束录制"
+                        PlaceholderText="Ctrl+Alt+S"
+                        LostFocus="HotkeyBox_LostFocus"
+                        KeyDown="HotkeyBox_KeyDown"/>
+
+                    <TextBox
+                        x:Name="StartReplayHotkeyBox"
+                        Header="开始回放"
+                        PlaceholderText="Ctrl+Alt+P"
+                        LostFocus="HotkeyBox_LostFocus"
+                        KeyDown="HotkeyBox_KeyDown"/>
+
+                    <TextBox
+                        x:Name="StopReplayHotkeyBox"
+                        Header="停止回放"
+                        PlaceholderText="Ctrl+Alt+X"
+                        LostFocus="HotkeyBox_LostFocus"
+                        KeyDown="HotkeyBox_KeyDown"/>
+
+                    <Button x:Name="BackButton"
+                            Content="返回"
+                            Click="BackButton_Click"/>
                 </StackPanel>
             </ScrollViewer>
         </Grid>
@@ -215,6 +335,6 @@
             IsOpen="True"
             Severity="Informational"
             Title="提示"
-            Message="开始录制和回放都有 3 秒准备时间；录制期间会忽略本窗口内操作；回放会真实控制桌面。" />
+            Message="开始录制和回放都有 3 秒准备时间；录制期间会忽略本窗口内操作；回放会真实控制桌面。"/>
     </Grid>
 </Window>

@@ -55,5 +55,17 @@ public static class AppSettingsStore
 
         settings.RecordDelaySeconds = Math.Clamp(settings.RecordDelaySeconds, 0, 60);
         settings.ReplayDelaySeconds = Math.Clamp(settings.ReplayDelaySeconds, 0, 60);
+
+        settings.StartRecordingHotkey = NormalizeHotkey(settings.StartRecordingHotkey, "Ctrl+Alt+R");
+        settings.StopRecordingHotkey = NormalizeHotkey(settings.StopRecordingHotkey, "Ctrl+Alt+S");
+        settings.StartReplayHotkey = NormalizeHotkey(settings.StartReplayHotkey, "Ctrl+Alt+P");
+        settings.StopReplayHotkey = NormalizeHotkey(settings.StopReplayHotkey, "Ctrl+Alt+X");
+    }
+
+    private static string NormalizeHotkey(string value, string fallback)
+    {
+        return HotkeyGesture.TryParse(value, out var gesture)
+            ? gesture.ToString()
+            : fallback;
     }
 }

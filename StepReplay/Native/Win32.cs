@@ -70,6 +70,9 @@ internal static partial class Win32
     [LibraryImport("user32.dll", SetLastError = true)]
     internal static partial uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
 
+    [LibraryImport("user32.dll")]
+    internal static partial short GetAsyncKeyState(int vKey);
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct POINT
     {

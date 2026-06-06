@@ -21,6 +21,8 @@ public sealed class InputRecorder : IDisposable
 
     public event EventHandler<InputEvent>? EventRecorded;
 
+    public bool IsRecording => _isRecording;
+
     public InputRecorder()
     {
         _mouseHookProc = MouseHookCallback;

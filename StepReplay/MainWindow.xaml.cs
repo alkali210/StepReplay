@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 using StepReplay.Models;
 using StepReplay.Services;
@@ -26,9 +27,11 @@ public sealed partial class MainWindow : Window
 
     private readonly InputRecorder _recorder = new();
     private readonly InputReplayer _replayer = new();
+    private readonly GlobalHotkeyService _hotkeyService = new();
     private readonly List<InputEvent> _events = [];
     private readonly AppSettings _settings;
     private readonly Localizer _localizer;
+    private CancellationTokenSource? _recordCts;
     private CancellationTokenSource? _replayCts;
     private bool _isUpdatingSettingsUi;
     private bool _isTransitioningPage;
@@ -42,11 +45,22 @@ public sealed partial class MainWindow : Window
 
         InitializeComponent();
         _recorder.EventRecorded += OnEventRecorded;
+        _hotkeyService.HotkeyPressed += OnHotkeyPressed;
+        Closed += MainWindow_Closed;
 
         ApplySettingsToControls();
         ApplyLocalization();
         RebuildVisibleEvents();
         StatusText.Text = _localizer.T("Status.Ready");
+
+        try
+        {
+            _hotkeyService.Start(_settings);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = string.Format(_localizer.T("Status.HotkeyStartFailed"), ex.Message);
+        }
     }
 
     private void OnEventRecorded(object? sender, InputEvent inputEvent)
@@ -63,6 +77,16 @@ public sealed partial class MainWindow : Window
 
     private async void StartButton_Click(object sender, RoutedEventArgs e)
     {
+        await RequestStartRecordingAsync();
+    }
+
+    private async Task RequestStartRecordingAsync()
+    {
+        if (_recorder.IsRecording || _recordCts is not null || _replayer.IsReplaying)
+        {
+            return;
+        }
+
         StartButton.IsEnabled = false;
         StopButton.IsEnabled = false;
         ReplayButton.IsEnabled = false;
@@ -72,36 +96,59 @@ public sealed partial class MainWindow : Window
         SettingsButton.IsEnabled = false;
         BusyRing.IsActive = true;
 
+        var cts = new CancellationTokenSource();
+        _recordCts = cts;
         try
         {
-            await RunCountdownAsync(_settings.RecordDelaySeconds, "Status.RecordDelay", CancellationToken.None);
+            await RunCountdownAsync(_settings.RecordDelaySeconds, "Status.RecordDelay", cts.Token);
 
             ClearEvents();
+            _recordCts = null;
             _recorder.Start();
             StopButton.IsEnabled = true;
             StatusText.Text = _localizer.T("Status.RecordStart");
         }
+        catch (OperationCanceledException)
+        {
+            RestoreIdleControls();
+            StatusText.Text = _localizer.T("Status.RecordCanceled");
+        }
         catch (Exception ex)
         {
-            BusyRing.IsActive = false;
-            StartButton.IsEnabled = true;
-            LoadButton.IsEnabled = true;
-            SettingsButton.IsEnabled = true;
+            RestoreIdleControls();
             StatusText.Text = string.Format(_localizer.T("Status.RecordFailed"), ex.Message);
+        }
+        finally
+        {
+            if (_recordCts == cts)
+            {
+                _recordCts = null;
+            }
+
+            cts.Dispose();
         }
     }
 
     private void StopButton_Click(object sender, RoutedEventArgs e)
     {
+        StopRecording();
+    }
+
+    private void StopRecording()
+    {
+        if (_recordCts is not null)
+        {
+            _recordCts.Cancel();
+            return;
+        }
+
+        if (!_recorder.IsRecording)
+        {
+            return;
+        }
+
         _recorder.Stop();
-        StartButton.IsEnabled = true;
-        StopButton.IsEnabled = false;
-        ReplayButton.IsEnabled = _events.Count > 0;
-        ClearButton.IsEnabled = _events.Count > 0;
-        SaveButton.IsEnabled = _events.Count > 0;
-        LoadButton.IsEnabled = true;
-        SettingsButton.IsEnabled = true;
-        BusyRing.IsActive = false;
+        RestoreIdleControls();
         StatusText.Text = _events.Count == 0
             ? _localizer.T("Status.NoEvents")
             : BuildCountText(_localizer.T("Status.RecordComplete"));
@@ -111,7 +158,17 @@ public sealed partial class MainWindow : Window
     {
         if (_replayer.IsReplaying)
         {
-            _replayCts?.Cancel();
+            ForceStopReplay();
+            return;
+        }
+
+        await RequestStartReplayAsync();
+    }
+
+    private async Task RequestStartReplayAsync()
+    {
+        if (_replayer.IsReplaying || _recordCts is not null || _recorder.IsRecording)
+        {
             return;
         }
 
@@ -155,6 +212,11 @@ public sealed partial class MainWindow : Window
             ReplayButton.Content = _localizer.T("Button.Replay");
             BusyRing.IsActive = false;
         }
+    }
+
+    private void ForceStopReplay()
+    {
+        _replayCts?.Cancel();
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -333,9 +395,69 @@ public sealed partial class MainWindow : Window
         SaveSettingsAndRefresh();
     }
 
+    private void HotkeyBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            ApplyHotkeyTextBox(textBox);
+        }
+    }
+
+    private void HotkeyBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            ApplyHotkeyTextBox(textBox);
+            textBox.IsEnabled = false;
+            textBox.IsEnabled = true;
+            e.Handled = true;
+        }
+    }
+
+    private void ApplyHotkeyTextBox(TextBox textBox)
+    {
+        if (_isUpdatingSettingsUi)
+        {
+            return;
+        }
+
+        if (!HotkeyGesture.TryParse(textBox.Text, out var gesture))
+        {
+            ApplySettingsToControls();
+            StatusText.Text = _localizer.T("Settings.HotkeyInvalid");
+            return;
+        }
+
+        var value = gesture.ToString();
+        if (textBox == StartRecordingHotkeyBox)
+        {
+            _settings.StartRecordingHotkey = value;
+        }
+        else if (textBox == StopRecordingHotkeyBox)
+        {
+            _settings.StopRecordingHotkey = value;
+        }
+        else if (textBox == StartReplayHotkeyBox)
+        {
+            _settings.StartReplayHotkey = value;
+        }
+        else if (textBox == StopReplayHotkeyBox)
+        {
+            _settings.StopReplayHotkey = value;
+        }
+
+        SaveSettingsAndRefresh(updateControls: true);
+    }
+
     private void SaveSettingsAndRefresh(bool updateControls = false)
     {
         AppSettingsStore.Save(_settings);
+        _hotkeyService.UpdateSettings(_settings);
         if (updateControls)
         {
             ApplySettingsToControls();
@@ -357,6 +479,10 @@ public sealed partial class MainWindow : Window
             RecordDelayBox.Value = _settings.RecordDelaySeconds;
             ReplayDelayBox.Value = _settings.ReplayDelaySeconds;
             ShowMouseMovesSwitch.IsOn = _settings.ShowMouseMovesInList;
+            StartRecordingHotkeyBox.Text = _settings.StartRecordingHotkey;
+            StopRecordingHotkeyBox.Text = _settings.StopRecordingHotkey;
+            StartReplayHotkeyBox.Text = _settings.StartReplayHotkey;
+            StopReplayHotkeyBox.Text = _settings.StopReplayHotkey;
         }
         finally
         {
@@ -391,6 +517,11 @@ public sealed partial class MainWindow : Window
         RecordDelayBox.Header = _localizer.T("Settings.RecordDelay");
         ReplayDelayBox.Header = _localizer.T("Settings.ReplayDelay");
         ShowMouseMovesSwitch.Header = _localizer.T("Settings.ShowMouseMoves");
+        HotkeysTitleText.Text = _localizer.T("Settings.Hotkeys");
+        StartRecordingHotkeyBox.Header = _localizer.T("Settings.Hotkey.StartRecording");
+        StopRecordingHotkeyBox.Header = _localizer.T("Settings.Hotkey.StopRecording");
+        StartReplayHotkeyBox.Header = _localizer.T("Settings.Hotkey.StartReplay");
+        StopReplayHotkeyBox.Header = _localizer.T("Settings.Hotkey.StopReplay");
 
         UpdateEventsSummary();
     }
@@ -417,6 +548,48 @@ public sealed partial class MainWindow : Window
         storyboard.Completed += OnCompleted;
         storyboard.Begin();
         return tcs.Task;
+    }
+
+    private void OnHotkeyPressed(object? sender, HotkeyAction action)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            switch (action)
+            {
+                case HotkeyAction.StartRecording:
+                    await RequestStartRecordingAsync();
+                    break;
+                case HotkeyAction.StopRecording:
+                    StopRecording();
+                    break;
+                case HotkeyAction.StartReplay:
+                    await RequestStartReplayAsync();
+                    break;
+                case HotkeyAction.StopReplay:
+                    ForceStopReplay();
+                    break;
+            }
+        });
+    }
+
+    private void RestoreIdleControls()
+    {
+        StartButton.IsEnabled = true;
+        StopButton.IsEnabled = false;
+        ReplayButton.IsEnabled = _events.Count > 0;
+        ClearButton.IsEnabled = _events.Count > 0;
+        SaveButton.IsEnabled = _events.Count > 0;
+        LoadButton.IsEnabled = true;
+        SettingsButton.IsEnabled = SettingsPage.Visibility != Visibility.Visible;
+        BusyRing.IsActive = false;
+    }
+
+    private void MainWindow_Closed(object sender, WindowEventArgs args)
+    {
+        _recordCts?.Cancel();
+        _replayCts?.Cancel();
+        _recorder.Dispose();
+        _hotkeyService.Dispose();
     }
 
     private void AddRecordedEvent(InputEvent inputEvent)
