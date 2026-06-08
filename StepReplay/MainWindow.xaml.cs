@@ -38,6 +38,8 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _recordCts;
     private CancellationTokenSource? _replayCts;
     private TextBox? _capturingHotkeyBox;
+    private string? _appliedThemeMode;
+    private string? _appliedBackdropKind;
     private bool _isNavPaneExpanded;
     private bool _isUpdatingSettingsUi;
     private bool _isTransitioningPage;
@@ -51,7 +53,6 @@ public sealed partial class MainWindow : Window
 
         InitializeComponent();
         InitializeCustomTitleBar();
-        InitializeHotkeyBoxAnimations();
         _recorder.EventRecorded += OnEventRecorded;
         _hotkeyService.HotkeyPressed += OnHotkeyPressed;
         _hotkeyService.HotkeyCaptured += OnHotkeyCaptured;
@@ -95,7 +96,7 @@ public sealed partial class MainWindow : Window
 
     private async Task RequestStartRecordingAsync()
     {
-        if (_recorder.IsRecording || _recordCts is not null || _replayer.IsReplaying)
+        if (_recorder.IsRecording || _recordCts is not null || _replayCts is not null || _replayer.IsReplaying)
         {
             return;
         }
@@ -169,7 +170,7 @@ public sealed partial class MainWindow : Window
 
     private async void ReplayButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_replayer.IsReplaying)
+        if (_replayCts is not null || _replayer.IsReplaying)
         {
             ForceStopReplay();
             return;
@@ -180,7 +181,7 @@ public sealed partial class MainWindow : Window
 
     private async Task RequestStartReplayAsync()
     {
-        if (_replayer.IsReplaying || _recordCts is not null || _recorder.IsRecording)
+        if (_replayCts is not null || _replayer.IsReplaying || _recordCts is not null || _recorder.IsRecording)
         {
             return;
         }
@@ -203,9 +204,20 @@ public sealed partial class MainWindow : Window
         try
         {
             await RunCountdownAsync(_settings.ReplayDelaySeconds, "Status.ReplayDelay", _replayCts.Token);
-            StatusText.Text = _localizer.T("Status.Replaying");
-            await _replayer.ReplayAsync(_events.ToList(), _replayCts.Token);
-            StatusText.Text = _localizer.T("Status.ReplayComplete");
+            var repeatCount = Math.Clamp(_settings.ReplayRepeatCount, 1, 999);
+            var replayEvents = _events.ToList();
+            for (var repeatIndex = 1; repeatIndex <= repeatCount; repeatIndex++)
+            {
+                _replayCts.Token.ThrowIfCancellationRequested();
+                StatusText.Text = repeatCount == 1
+                    ? _localizer.T("Status.Replaying")
+                    : string.Format(_localizer.T("Status.ReplayingRepeat"), repeatIndex, repeatCount);
+                await _replayer.ReplayAsync(replayEvents, _replayCts.Token);
+            }
+
+            StatusText.Text = repeatCount == 1
+                ? _localizer.T("Status.ReplayComplete")
+                : string.Format(_localizer.T("Status.ReplayCompleteRepeat"), repeatCount);
         }
         catch (OperationCanceledException)
         {
@@ -391,7 +403,7 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.Language = language;
-        SaveSettingsAndRefresh();
+        SaveSettingsAndRefresh(updateLocalization: true, rebuildVisibleEvents: true);
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -402,7 +414,7 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.ThemeMode = themeMode;
-        SaveSettingsAndRefresh();
+        SaveSettingsAndRefresh(updateAppearance: true);
     }
 
     private void BackdropComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -413,7 +425,7 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.BackdropKind = backdropKind;
-        SaveSettingsAndRefresh();
+        SaveSettingsAndRefresh(updateAppearance: true);
     }
 
     private void RecordDelayBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -424,7 +436,7 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.RecordDelaySeconds = (int)Math.Round(sender.Value);
-        SaveSettingsAndRefresh(updateControls: true);
+        SaveSettingsAndRefresh();
     }
 
     private void ReplayDelayBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
@@ -435,7 +447,18 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.ReplayDelaySeconds = (int)Math.Round(sender.Value);
-        SaveSettingsAndRefresh(updateControls: true);
+        SaveSettingsAndRefresh();
+    }
+
+    private void ReplayRepeatCountBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_isUpdatingSettingsUi || double.IsNaN(sender.Value))
+        {
+            return;
+        }
+
+        _settings.ReplayRepeatCount = (int)Math.Round(sender.Value);
+        SaveSettingsAndRefresh();
     }
 
     private void ShowMouseMovesSwitch_Toggled(object sender, RoutedEventArgs e)
@@ -446,7 +469,7 @@ public sealed partial class MainWindow : Window
         }
 
         _settings.ShowMouseMovesInList = ShowMouseMovesSwitch.IsOn;
-        SaveSettingsAndRefresh();
+        SaveSettingsAndRefresh(rebuildVisibleEvents: true);
     }
 
     private void HotkeyBox_LostFocus(object sender, RoutedEventArgs e)
@@ -520,8 +543,13 @@ public sealed partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(textBox.Text))
         {
+            if (string.IsNullOrEmpty(GetHotkeyValue(textBox)))
+            {
+                return;
+            }
+
             SetHotkeyValue(textBox, string.Empty);
-            SaveSettingsAndRefresh(updateControls: true);
+            SaveSettingsAndRefresh(updateHotkeys: true);
             return;
         }
 
@@ -533,6 +561,11 @@ public sealed partial class MainWindow : Window
         }
 
         var value = gesture.ToString();
+        if (string.Equals(GetHotkeyValue(textBox), value, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         if (TryGetHotkeyConflict(textBox, value, out var conflictName))
         {
             ApplySettingsToControls();
@@ -541,7 +574,29 @@ public sealed partial class MainWindow : Window
         }
 
         SetHotkeyValue(textBox, value);
-        SaveSettingsAndRefresh(updateControls: true);
+        SaveSettingsAndRefresh(updateHotkeys: true);
+    }
+
+    private string GetHotkeyValue(TextBox textBox)
+    {
+        if (textBox == StartRecordingHotkeyBox)
+        {
+            return _settings.StartRecordingHotkey;
+        }
+
+        if (textBox == StopRecordingHotkeyBox)
+        {
+            return _settings.StopRecordingHotkey;
+        }
+
+        if (textBox == StartReplayHotkeyBox)
+        {
+            return _settings.StartReplayHotkey;
+        }
+
+        return textBox == StopReplayHotkeyBox
+            ? _settings.StopReplayHotkey
+            : string.Empty;
     }
 
     private void SetHotkeyValue(TextBox textBox, string value)
@@ -597,18 +652,39 @@ public sealed partial class MainWindow : Window
         return false;
     }
 
-    private void SaveSettingsAndRefresh(bool updateControls = false)
+    private void SaveSettingsAndRefresh(
+        bool updateControls = false,
+        bool updateAppearance = false,
+        bool updateLocalization = false,
+        bool rebuildVisibleEvents = false,
+        bool updateHotkeys = false)
     {
         AppSettingsStore.Save(_settings);
-        _hotkeyService.UpdateSettings(_settings);
+        if (updateHotkeys)
+        {
+            _hotkeyService.UpdateSettings(_settings);
+        }
+
         if (updateControls)
         {
             ApplySettingsToControls();
         }
 
-        ApplyAppearance();
-        ApplyLocalization();
-        RebuildVisibleEvents();
+        if (updateAppearance)
+        {
+            ApplyAppearance();
+        }
+
+        if (updateLocalization)
+        {
+            ApplyLocalization();
+        }
+
+        if (rebuildVisibleEvents)
+        {
+            RebuildVisibleEvents();
+        }
+
         StatusText.Text = _localizer.T("Settings.Saved");
     }
 
@@ -620,75 +696,33 @@ public sealed partial class MainWindow : Window
 
     private void ApplyAppearance()
     {
-        RootGrid.RequestedTheme = _settings.ThemeMode switch
+        var themeMode = _settings.ThemeMode;
+        var requestedTheme = themeMode switch
         {
             "Light" => ElementTheme.Light,
             "Dark" => ElementTheme.Dark,
             _ => ElementTheme.Default
         };
 
+        if (_appliedThemeMode != themeMode || RootGrid.RequestedTheme != requestedTheme)
+        {
+            RootGrid.RequestedTheme = requestedTheme;
+            _appliedThemeMode = themeMode;
+        }
+
+        var backdropKind = _settings.BackdropKind;
+        if (_appliedBackdropKind == backdropKind && SystemBackdrop is not null)
+        {
+            return;
+        }
+
         SystemBackdrop = new MicaBackdrop
         {
-            Kind = _settings.BackdropKind == "MicaAlt"
+            Kind = backdropKind == "MicaAlt"
                 ? Microsoft.UI.Composition.SystemBackdrops.MicaKind.BaseAlt
                 : Microsoft.UI.Composition.SystemBackdrops.MicaKind.Base
         };
-    }
-
-    private void InitializeHotkeyBoxAnimations()
-    {
-        foreach (var textBox in new[] { StartRecordingHotkeyBox, StopRecordingHotkeyBox, StartReplayHotkeyBox, StopReplayHotkeyBox })
-        {
-            textBox.RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
-            textBox.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(HotkeyBox_PointerPressed), true);
-            textBox.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(HotkeyBox_PointerReleased), true);
-            textBox.AddHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(HotkeyBox_PointerReleased), true);
-            textBox.AddHandler(UIElement.PointerExitedEvent, new PointerEventHandler(HotkeyBox_PointerReleased), true);
-        }
-    }
-
-    private void HotkeyBox_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        if (sender is TextBox textBox)
-        {
-            AnimateScale(textBox, 0.985, TimeSpan.FromMilliseconds(83));
-        }
-    }
-
-    private void HotkeyBox_PointerReleased(object sender, PointerRoutedEventArgs e)
-    {
-        if (sender is TextBox textBox)
-        {
-            AnimateScale(textBox, 1, TimeSpan.FromMilliseconds(167));
-        }
-    }
-
-    private static void AnimateScale(TextBox textBox, double scale, TimeSpan duration)
-    {
-        if (textBox.RenderTransform is not ScaleTransform)
-        {
-            textBox.RenderTransform = new ScaleTransform { ScaleX = 1, ScaleY = 1 };
-        }
-
-        var storyboard = new Storyboard();
-        storyboard.Children.Add(CreateScaleAnimation(textBox, "ScaleX", scale, duration));
-        storyboard.Children.Add(CreateScaleAnimation(textBox, "ScaleY", scale, duration));
-        storyboard.Begin();
-    }
-
-    private static DoubleAnimation CreateScaleAnimation(TextBox textBox, string property, double to, TimeSpan duration)
-    {
-        var animation = new DoubleAnimation
-        {
-            To = to,
-            Duration = duration,
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            EnableDependentAnimation = true
-        };
-
-        Storyboard.SetTarget(animation, textBox);
-        Storyboard.SetTargetProperty(animation, $"(UIElement.RenderTransform).(ScaleTransform.{property})");
-        return animation;
+        _appliedBackdropKind = backdropKind;
     }
 
     private void ApplySettingsToControls()
@@ -710,6 +744,7 @@ public sealed partial class MainWindow : Window
                 : BackdropMicaItem;
             RecordDelayBox.Value = _settings.RecordDelaySeconds;
             ReplayDelayBox.Value = _settings.ReplayDelaySeconds;
+            ReplayRepeatCountBox.Value = _settings.ReplayRepeatCount;
             ShowMouseMovesSwitch.IsOn = _settings.ShowMouseMovesInList;
             StartRecordingHotkeyBox.Text = _settings.StartRecordingHotkey;
             StopRecordingHotkeyBox.Text = _settings.StopRecordingHotkey;
@@ -756,6 +791,7 @@ public sealed partial class MainWindow : Window
         BackdropMicaAltItem.Content = _localizer.T("Settings.Backdrop.MicaAlt");
         RecordDelayBox.Header = _localizer.T("Settings.RecordDelay");
         ReplayDelayBox.Header = _localizer.T("Settings.ReplayDelay");
+        ReplayRepeatCountBox.Header = _localizer.T("Settings.ReplayRepeatCount");
         ShowMouseMovesSwitch.Header = _localizer.T("Settings.ShowMouseMoves");
         HotkeysTitleText.Text = _localizer.T("Settings.Hotkeys");
         StartRecordingHotkeyBox.Header = _localizer.T("Settings.Hotkey.StartRecording");

@@ -5,6 +5,8 @@ namespace StepReplay.Services;
 
 public static class AppSettingsStore
 {
+    private const int CurrentSettingsVersion = 2;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true
@@ -55,8 +57,16 @@ public static class AppSettingsStore
 
         settings.RecordDelaySeconds = Math.Clamp(settings.RecordDelaySeconds, 0, 60);
         settings.ReplayDelaySeconds = Math.Clamp(settings.ReplayDelaySeconds, 0, 60);
+        settings.ReplayRepeatCount = Math.Clamp(settings.ReplayRepeatCount, 1, 999);
         settings.ThemeMode = NormalizeChoice(settings.ThemeMode, ["Default", "Light", "Dark"], "Default");
         settings.BackdropKind = NormalizeChoice(settings.BackdropKind, ["Mica", "MicaAlt"], "Mica");
+
+        if (settings.SettingsVersion < 2 && string.IsNullOrWhiteSpace(settings.StopReplayHotkey))
+        {
+            settings.StopReplayHotkey = AppSettings.DefaultStopReplayHotkey;
+        }
+
+        settings.SettingsVersion = CurrentSettingsVersion;
 
         settings.StartRecordingHotkey = NormalizeHotkey(settings.StartRecordingHotkey);
         settings.StopRecordingHotkey = NormalizeHotkey(settings.StopRecordingHotkey);

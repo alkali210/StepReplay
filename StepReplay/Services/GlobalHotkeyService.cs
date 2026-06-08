@@ -45,10 +45,10 @@ public sealed class GlobalHotkeyService : IDisposable
     public void UpdateSettings(AppSettings settings)
     {
         _hotkeys.Clear();
+        AddHotkey(HotkeyAction.StopReplay, settings.StopReplayHotkey);
         AddHotkey(HotkeyAction.StartRecording, settings.StartRecordingHotkey);
         AddHotkey(HotkeyAction.StopRecording, settings.StopRecordingHotkey);
         AddHotkey(HotkeyAction.StartReplay, settings.StartReplayHotkey);
-        AddHotkey(HotkeyAction.StopReplay, settings.StopReplayHotkey);
         _activeActions.Clear();
     }
 
@@ -109,7 +109,10 @@ public sealed class GlobalHotkeyService : IDisposable
 
                     if (message is Win32.WM_KEYDOWN or Win32.WM_SYSKEYDOWN)
                     {
-                        HandleKeyDown((int)data.vkCode);
+                        if (HandleKeyDown((int)data.vkCode))
+                        {
+                            return 1;
+                        }
                     }
                     else if (message is Win32.WM_KEYUP or Win32.WM_SYSKEYUP)
                     {
@@ -197,11 +200,19 @@ public sealed class GlobalHotkeyService : IDisposable
         return modifier != HotkeyModifiers.None;
     }
 
-    private void HandleKeyDown(int key)
+    private bool HandleKeyDown(int key)
     {
+        if (TryHandleHotkeyAction(HotkeyAction.StopReplay, key))
+        {
+            return true;
+        }
+
         foreach (var (action, gesture) in _hotkeys)
         {
-            if (gesture.Key != key || _activeActions.Contains(action) || !ModifiersMatch(gesture.Modifiers))
+            if (action == HotkeyAction.StopReplay
+                || gesture.Key != key
+                || _activeActions.Contains(action)
+                || !ModifiersMatch(gesture.Modifiers))
             {
                 continue;
             }
@@ -209,6 +220,26 @@ public sealed class GlobalHotkeyService : IDisposable
             _activeActions.Add(action);
             HotkeyPressed?.Invoke(this, action);
         }
+
+        return false;
+    }
+
+    private bool TryHandleHotkeyAction(HotkeyAction action, int key)
+    {
+        if (!_hotkeys.TryGetValue(action, out var gesture)
+            || gesture.Key != key
+            || !ModifiersMatch(gesture.Modifiers))
+        {
+            return false;
+        }
+
+        if (!_activeActions.Contains(action))
+        {
+            _activeActions.Add(action);
+            HotkeyPressed?.Invoke(this, action);
+        }
+
+        return true;
     }
 
     private void HandleKeyUp(int key)
