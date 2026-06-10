@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Windowing;
 using StepReplay.Models;
 using StepReplay.Native;
 using StepReplay.Services;
@@ -15,6 +16,7 @@ using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Provider;
 using Windows.System;
+using Windows.UI;
 using WinRT.Interop;
 
 namespace StepReplay;
@@ -35,11 +37,13 @@ public sealed partial class MainWindow : Window
     private readonly List<InputEvent> _events = [];
     private readonly AppSettings _settings;
     private readonly Localizer _localizer;
+    private AppWindow? _appWindow;
     private CancellationTokenSource? _recordCts;
     private CancellationTokenSource? _replayCts;
     private TextBox? _capturingHotkeyBox;
     private string? _appliedThemeMode;
     private string? _appliedBackdropKind;
+    private ElementTheme? _appliedTitleBarButtonTheme;
     private bool _isNavPaneExpanded;
     private bool _isUpdatingSettingsUi;
     private bool _isTransitioningPage;
@@ -59,6 +63,7 @@ public sealed partial class MainWindow : Window
         _hotkeyService.HotkeyCaptureCanceled += OnHotkeyCaptureCanceled;
         _hotkeyService.HotkeyCaptureCleared += OnHotkeyCaptureCleared;
         _hotkeyService.HotkeyCaptureNeedsModifier += OnHotkeyCaptureNeedsModifier;
+        RootGrid.ActualThemeChanged += RootGrid_ActualThemeChanged;
         Closed += MainWindow_Closed;
 
         ApplySettingsToControls();
@@ -692,6 +697,11 @@ public sealed partial class MainWindow : Window
     {
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBarDragRegion);
+
+        var windowHandle = WindowNative.GetWindowHandle(this);
+        var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
+        _appWindow = AppWindow.GetFromWindowId(windowId);
+        ApplyTitleBarButtonColors();
     }
 
     private void ApplyAppearance()
@@ -708,6 +718,7 @@ public sealed partial class MainWindow : Window
         {
             RootGrid.RequestedTheme = requestedTheme;
             _appliedThemeMode = themeMode;
+            ApplyTitleBarButtonColors();
         }
 
         var backdropKind = _settings.BackdropKind;
@@ -723,6 +734,59 @@ public sealed partial class MainWindow : Window
                 : Microsoft.UI.Composition.SystemBackdrops.MicaKind.Base
         };
         _appliedBackdropKind = backdropKind;
+    }
+
+    private void RootGrid_ActualThemeChanged(FrameworkElement sender, object args)
+    {
+        ApplyTitleBarButtonColors();
+    }
+
+    private void ApplyTitleBarButtonColors()
+    {
+        if (_appWindow is null || !AppWindowTitleBar.IsCustomizationSupported())
+        {
+            return;
+        }
+
+        var titleBarTheme = _settings.ThemeMode switch
+        {
+            "Dark" => ElementTheme.Dark,
+            "Light" => ElementTheme.Light,
+            _ => RootGrid.ActualTheme == ElementTheme.Dark
+                ? ElementTheme.Dark
+                : ElementTheme.Light
+        };
+        if (_appliedTitleBarButtonTheme == titleBarTheme)
+        {
+            return;
+        }
+
+        var titleBar = _appWindow.TitleBar;
+        titleBar.ButtonBackgroundColor = Color.FromArgb(0x00, 0x00, 0x00, 0x00);
+        titleBar.ButtonInactiveBackgroundColor = Color.FromArgb(0x00, 0x00, 0x00, 0x00);
+        titleBar.ButtonHoverBackgroundColor = titleBarTheme == ElementTheme.Dark
+            ? Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)
+            : Color.FromArgb(0x0F, 0x00, 0x00, 0x00);
+        titleBar.ButtonPressedBackgroundColor = titleBarTheme == ElementTheme.Dark
+            ? Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)
+            : Color.FromArgb(0x18, 0x00, 0x00, 0x00);
+
+        if (titleBarTheme == ElementTheme.Dark)
+        {
+            titleBar.ButtonForegroundColor = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+            titleBar.ButtonHoverForegroundColor = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+            titleBar.ButtonPressedForegroundColor = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+            titleBar.ButtonInactiveForegroundColor = Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF);
+        }
+        else
+        {
+            titleBar.ButtonForegroundColor = Color.FromArgb(0xFF, 0x00, 0x00, 0x00);
+            titleBar.ButtonHoverForegroundColor = Color.FromArgb(0xFF, 0x00, 0x00, 0x00);
+            titleBar.ButtonPressedForegroundColor = Color.FromArgb(0xFF, 0x00, 0x00, 0x00);
+            titleBar.ButtonInactiveForegroundColor = Color.FromArgb(0x99, 0x00, 0x00, 0x00);
+        }
+
+        _appliedTitleBarButtonTheme = titleBarTheme;
     }
 
     private void ApplySettingsToControls()
